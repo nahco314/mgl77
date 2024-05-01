@@ -21,8 +21,8 @@ import tkinter as tk
 from tkinter import messagebox
 
 
-WARNING_SECS = 5
-KILL_SECS = 10
+WARNING_SECS = 5 * 60
+KILL_SECS = 10 * 60
 
 game_process: Optional[subprocess.Popen] = None
 

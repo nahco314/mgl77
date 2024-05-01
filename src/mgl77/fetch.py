@@ -1,7 +1,7 @@
 from dulwich import index
 from dulwich.client import HttpGitClient
 from dulwich.repo import Repo
-from func_timeout import func_set_timeout, FunctionTimedOut
+from func_timeout import FunctionTimedOut, func_timeout
 
 from pathlib import Path
 
@@ -9,7 +9,6 @@ from pathlib import Path
 REMOTE_URL = "https://github.com/nahco314/agc77-minigames"
 
 
-@func_set_timeout(5)
 def _fetch():
     if Path("./assets/").exists():
         local_repo = Repo("./assets/")
@@ -26,7 +25,10 @@ def _fetch():
 
 def fetch():
     try:
-        _fetch()
+        if Path("./assets/").exists():
+            func_timeout(5, _fetch)
+        else:
+            func_timeout(60, _fetch)
 
         print("fetch done!")
 

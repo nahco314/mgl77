@@ -229,6 +229,7 @@ def main(page: ft.Page):
             if game_process is not None:
                 game_process.terminate()
                 game_process.wait()
+                end_thread_event.set()
 
     page.window_prevent_close = True
     page.on_window_event = window_event_handler
