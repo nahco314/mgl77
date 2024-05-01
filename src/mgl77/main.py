@@ -7,6 +7,8 @@ from pathlib import Path
 from pydantic import BaseModel, ValidationError
 import tomllib
 
+import subprocess
+
 import re
 
 
@@ -14,7 +16,7 @@ class GameData(BaseModel):
     title: str
     description: str
     author: str
-    game_exe_name: str
+    game_exe: Path
     screen_shot: Optional[Path]
     index: int
 
@@ -41,13 +43,13 @@ def get_games(games_path: Path) -> list[GameData]:
             dct = tomllib.load(f)
             dct["screen_shot"] = screen_shot
             dct["index"] = i
+            dct["game_exe"] = p / f"{dct["game_exe_name"]}.exe" if "game_exe_name" in dct else None
             try:
                 game_data = GameData(**dct)
             except ValidationError:
                 raise ValueError(f"Invalid game.toml in {p}")
 
-        exe_path = p / f"{game_data.game_exe_name}.exe"
-        if not exe_path.exists():
+        if not game_data.game_exe.exists():
             raise FileNotFoundError(f"Game exe not found in {p}")
 
         res.append(game_data)
@@ -69,7 +71,10 @@ class NavigationItem(ft.Container):
         self.border_radius = 5
         self.destination = destination
         self.text = destination.title
-        self.content = ft.Row([ft.Text(self.text)])
+        self.content = ft.Row(
+            [ft.Text(self.text), ft.Text(destination.author)],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        )
         self.on_click = item_clicked
 
 
@@ -108,14 +113,9 @@ class NavigationColumn(ft.Column):
         self.select(e.control.destination.index)
 
     def update_selected_item(self):
-        print(self.selected_index, self.gallery.selected_control_group)
-
-        print(1, self.selected_index)
-
         self.selected_index = self.gallery.control_groups.index(
             self.gallery.selected_control_group
         )
-        print(2, self.selected_index)
 
         for item in self.controls:
             item.bgcolor = None
@@ -130,9 +130,10 @@ def main(page: ft.Page):
     page.title = "Routes Example"
 
     img_controller: Optional[ft.Container] = None
+    img_part: Optional[ft.Container] = None
 
     def route_change(e):
-        nonlocal img_controller
+        nonlocal img_controller, img_part
 
         page.views.clear()
         page.views.append(
@@ -159,13 +160,15 @@ def main(page: ft.Page):
 
             nav = NavigationColumn(AllGameData())
 
+            game_data = nav.gallery.control_groups[num]
+
             for it in nav.gallery.control_groups:
                 if it.index == num:
                     nav.gallery.selected_control_group = it
                     break
 
             img_w = page.width / 10 * 7
-            img_h = page.height - 100
+            img_h = page.height - 200
 
             if nav.gallery.selected_control_group.screen_shot is not None:
                 img_controller = ft.Image(
@@ -173,11 +176,45 @@ def main(page: ft.Page):
                     width=img_w,
                     height=img_h,
                     fit=ft.ImageFit.COVER,
+                    border_radius=ft.border_radius.all(10),
                 )
             else:
                 img_controller = ft.Container(
-                    bgcolor=ft.colors.GREY, width=img_w, height=img_h
+
+                    bgcolor=ft.colors.GREY, width=img_w, height=img_h, border_radius=ft.border_radius.all(10),
                 )
+
+            print(page.height, img_controller.height)
+
+
+            def game_on_click(e):
+                subprocess.run([str(game_data.game_exe.absolute())])
+
+            img_part = ft.Container(
+                ft.Column(
+                    [
+                        ft.Container(
+                            ft.Row(
+                                [
+                                    ft.Text(game_data.title, size=45),
+                                    ft.Text(
+                                        game_data.description,
+                                        size=20,
+                                        expand=True,
+                                        overflow=ft.TextOverflow.CLIP,
+                                    ),
+                                    ft.Container(ft.Text("あそぶ", size=40), bgcolor=ft.colors.GREEN, ink_color=ft.colors.GREEN, on_click=game_on_click, padding=ft.Padding(20, 10, 20, 10), border_radius=ft.border_radius.all(10),)
+                                ],
+                            ),
+                            border=ft.border.all(2),
+                            border_radius=ft.border_radius.all(10),
+                            padding=ft.Padding(20, 10, 10, 10),
+                        ),
+                        img_controller,
+                    ],
+                    width=img_w,
+                ),
+            )
 
             def on_keyboard(e: ft.KeyboardEvent):
                 nav_items = nav.get_navigation_items()
@@ -188,6 +225,8 @@ def main(page: ft.Page):
                 elif e.key == "Arrow Up":
                     nav.select((num - 1) % len(nav_items))
                     nav.update_selected_item()
+                elif e.key == "Enter":
+                    game_on_click(e)
 
             page.on_keyboard_event = on_keyboard
 
@@ -209,29 +248,7 @@ def main(page: ft.Page):
                         ft.Row(
                             [
                                 nav,
-                                ft.Stack(
-                                    [
-                                        img_controller,
-                                        ft.Column(
-                                            [
-                                                ft.Text(
-                                                    "たいとる",
-                                                    bgcolor=ft.colors.with_opacity(
-                                                        0.4, ft.colors.WHITE
-                                                    ),
-                                                    size=60,
-                                                ),
-                                                ft.Text(
-                                                    "せつめい",
-                                                    bgcolor=ft.colors.with_opacity(
-                                                        0.4, ft.colors.WHITE
-                                                    ),
-                                                    size=20,
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                ),
+                                img_part,
                             ],
                             vertical_alignment=ft.CrossAxisAlignment.START,
                             alignment=ft.MainAxisAlignment.START,
@@ -245,10 +262,13 @@ def main(page: ft.Page):
     def page_resized(e):
         print(e)
 
-        nonlocal img_controller
+        nonlocal img_controller, img_part
         if img_controller is not None:
             img_controller.width = page.width / 10 * 7
-            img_controller.height = page.height - 100
+            img_controller.height = page.height - 200
+            img_part.width = img_controller.width
+
+            print(page.height, img_controller.height)
 
         page.update()
 
