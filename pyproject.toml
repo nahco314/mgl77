@@ -8,6 +8,9 @@ authors = [
 dependencies = [
     "flet>=0.22.0",
     "pydantic>=2.7.1",
+    "dulwich>=0.22.1",
+    "py-timeout>=0.0.1",
+    "func-timeout>=4.3.5",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -18,7 +21,9 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
-dev-dependencies = []
+dev-dependencies = [
+    "pyinstaller>=6.6.0",
+]
 
 [tool.hatch.metadata]
 allow-direct-references = true

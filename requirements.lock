@@ -35,6 +35,8 @@ colorama==0.4.6
     # via uvicorn
 cookiecutter==2.6.0
     # via flet
+dulwich==0.22.1
+    # via mgl77
 fastapi==0.110.3
     # via flet
 flet==0.22.0
@@ -43,6 +45,8 @@ flet-core==0.22.0
     # via flet-runtime
 flet-runtime==0.22.0
     # via flet
+func-timeout==4.3.5
+    # via mgl77
 h11==0.14.0
     # via httpcore
     # via uvicorn
@@ -68,6 +72,8 @@ oauthlib==3.2.2
     # via flet-runtime
 packaging==23.2
     # via flet
+py-timeout==0.0.1
+    # via mgl77
 pydantic==2.7.1
     # via fastapi
     # via mgl77
@@ -94,6 +100,8 @@ requests==2.31.0
     # via cookiecutter
 rich==13.7.1
     # via cookiecutter
+setuptools==69.5.1
+    # via dulwich
 six==1.16.0
     # via python-dateutil
     # via repath
@@ -112,6 +120,7 @@ typing-extensions==4.11.0
     # via pydantic-core
     # via qrcode
 urllib3==2.2.1
+    # via dulwich
     # via requests
 uvicorn==0.29.0
     # via flet

@@ -8,6 +8,8 @@
 #   with-sources: false
 
 -e file:.
+altgraph==0.17.4
+    # via pyinstaller
 annotated-types==0.6.0
     # via pydantic
 anyio==4.3.0
@@ -35,6 +37,8 @@ colorama==0.4.6
     # via uvicorn
 cookiecutter==2.6.0
     # via flet
+dulwich==0.22.1
+    # via mgl77
 fastapi==0.110.3
     # via flet
 flet==0.22.0
@@ -43,6 +47,8 @@ flet-core==0.22.0
     # via flet-runtime
 flet-runtime==0.22.0
     # via flet
+func-timeout==4.3.5
+    # via mgl77
 h11==0.14.0
     # via httpcore
     # via uvicorn
@@ -68,6 +74,12 @@ oauthlib==3.2.2
     # via flet-runtime
 packaging==23.2
     # via flet
+    # via pyinstaller
+    # via pyinstaller-hooks-contrib
+pefile==2023.2.7
+    # via pyinstaller
+py-timeout==0.0.1
+    # via mgl77
 pydantic==2.7.1
     # via fastapi
     # via mgl77
@@ -75,6 +87,9 @@ pydantic-core==2.18.2
     # via pydantic
 pygments==2.17.2
     # via rich
+pyinstaller==6.6.0
+pyinstaller-hooks-contrib==2024.5
+    # via pyinstaller
 pypng==0.20220715.0
     # via qrcode
 python-dateutil==2.9.0.post0
@@ -83,6 +98,8 @@ python-dotenv==1.0.1
     # via uvicorn
 python-slugify==8.0.4
     # via cookiecutter
+pywin32-ctypes==0.2.2
+    # via pyinstaller
 pyyaml==6.0.1
     # via cookiecutter
     # via uvicorn
@@ -94,6 +111,10 @@ requests==2.31.0
     # via cookiecutter
 rich==13.7.1
     # via cookiecutter
+setuptools==69.5.1
+    # via dulwich
+    # via pyinstaller
+    # via pyinstaller-hooks-contrib
 six==1.16.0
     # via python-dateutil
     # via repath
@@ -112,6 +133,7 @@ typing-extensions==4.11.0
     # via pydantic-core
     # via qrcode
 urllib3==2.2.1
+    # via dulwich
     # via requests
 uvicorn==0.29.0
     # via flet

@@ -8,123 +8,19 @@ from pydantic import BaseModel, ValidationError
 import tomllib
 
 import subprocess
+from threading import Thread
+from multiprocessing import Event
 
 import re
 
+from mgl77.fetch import fetch
+from mgl77.game_data import NavigationColumn, AllGameData
+from mgl77.time_keeper import time_keep
 
-class GameData(BaseModel):
-    title: str
-    description: str
-    author: str
-    game_exe: Path
-    screen_shot: Optional[Path]
-    index: int
-
-
-def get_games(games_path: Path) -> list[GameData]:
-    # games_path の中からゲーム情報を読み取り、一覧を返す
-    # ふつう、games_path は assets/games ということになる
-
-    res = []
-
-    for i, p in enumerate(games_path.iterdir()):
-        toml_path = p / "game.toml"
-        if not toml_path.exists():
-            raise FileNotFoundError(f"game.toml not found in {p}")
-
-        screen_shot_path = p / "ss.png"
-        screen_shot: Optional[Path]
-        if screen_shot_path.exists():
-            screen_shot = screen_shot_path
-        else:
-            screen_shot = None
-
-        with open(toml_path, "rb") as f:
-            dct = tomllib.load(f)
-            dct["screen_shot"] = screen_shot
-            dct["index"] = i
-            dct["game_exe"] = p / f"{dct["game_exe_name"]}.exe" if "game_exe_name" in dct else None
-            try:
-                game_data = GameData(**dct)
-            except ValidationError:
-                raise ValueError(f"Invalid game.toml in {p}")
-
-        if not game_data.game_exe.exists():
-            raise FileNotFoundError(f"Game exe not found in {p}")
-
-        res.append(game_data)
-
-    return res
-
-
-class AllGameData:
-    def __init__(self):
-        self.control_groups = get_games(Path("assets/games"))
-        self.selected_control_group = self.control_groups[0]
-
-
-class NavigationItem(ft.Container):
-    def __init__(self, destination, item_clicked):
-        super().__init__()
-        self.ink = True
-        self.padding = 10
-        self.border_radius = 5
-        self.destination = destination
-        self.text = destination.title
-        self.content = ft.Row(
-            [ft.Text(self.text), ft.Text(destination.author)],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-        )
-        self.on_click = item_clicked
-
-
-class NavigationColumn(ft.Column):
-    def __init__(self, gallery: AllGameData):
-        super().__init__(alignment=ft.MainAxisAlignment.CENTER, spacing=10)
-        self.expand = 4
-        self.spacing = 0
-        self.scroll = ft.ScrollMode.ALWAYS
-        self.width = 200
-        self.gallery = gallery
-        self.selected_index = 0
-        self.controls = self.get_navigation_items()
-
-    def before_update(self):
-        super().before_update()
-        self.update_selected_item()
-
-    def get_navigation_items(self):
-        navigation_items = []
-        for destination in self.gallery.control_groups:
-            navigation_items.append(
-                NavigationItem(destination, item_clicked=self.item_clicked)
-            )
-        return navigation_items
-
-    def select(self, index: int) -> None:
-        self.selected_index = index
-        self.gallery.selected_control_group = self.gallery.control_groups[index]
-        self.update_selected_item()
-        self.page.go(
-            f"/games/{index}"
-        )  # なんかここはエラー出ることがある　ようわからん
-
-    def item_clicked(self, e):
-        self.select(e.control.destination.index)
-
-    def update_selected_item(self):
-        self.selected_index = self.gallery.control_groups.index(
-            self.gallery.selected_control_group
-        )
-
-        for item in self.controls:
-            item.bgcolor = None
-            # item.content.controls[0].name = item.destination.icon
-        self.controls[self.selected_index].bgcolor = ft.colors.SECONDARY_CONTAINER
-        # self.controls[self.selected_index].content.controls[0].name = self.controls[
-        #     self.selected_index
-        # ].destination.selected_icon
-
+game_process: Optional[subprocess.Popen] = None
+time_keeper_thread: Optional[Thread] = None
+kill_window_event: Event = Event()
+end_thread_event: Event = Event()
 
 def main(page: ft.Page):
     page.title = "Routes Example"
@@ -134,6 +30,7 @@ def main(page: ft.Page):
 
     def route_change(e):
         nonlocal img_controller, img_part
+        global time_keeper_thread, kill_window_event, end_thread_event
 
         page.views.clear()
         page.views.append(
@@ -155,7 +52,31 @@ def main(page: ft.Page):
             )
         )
 
+        if page.route == "/":
+            fetch()
+
+            if time_keeper_thread is not None:
+                end_thread_event.set()
+                time_keeper_thread.join()
+
+                kill_window_event = Event()
+                end_thread_event = Event()
+
+            if game_process is not None:
+                game_process.terminate()
+                game_process.wait()
+
         if m := re.match("/games/(.*)", page.route):
+            if time_keeper_thread is None:
+                def kill():
+                    page.window_destroy()
+                    if game_process is not None:
+                        game_process.terminate()
+                        game_process.wait()
+
+                time_keeper_thread = Thread(target=time_keep, args=(kill_window_event, end_thread_event, kill))
+                time_keeper_thread.start()
+
             num = int(m.group(1))
 
             nav = NavigationColumn(AllGameData())
@@ -184,11 +105,34 @@ def main(page: ft.Page):
                     bgcolor=ft.colors.GREY, width=img_w, height=img_h, border_radius=ft.border_radius.all(10),
                 )
 
-            print(page.height, img_controller.height)
-
-
             def game_on_click(e):
-                subprocess.run([str(game_data.game_exe.absolute())])
+                global game_process
+
+                if game_process is not None and game_process.poll() is not None:
+                    game_process = None
+
+                if game_process is not None:
+                    def close_dlg(e):
+                        dlg.open = False
+                        page.update()
+
+                    dlg = ft.AlertDialog(
+                        title=ft.Text("エラー"),
+                        content=ft.Text("すでにゲームが起動しています。そちらを終了してから始めてください"),
+                        actions=[
+                            ft.TextButton("OK", on_click=close_dlg),
+                        ],
+                        actions_alignment=ft.MainAxisAlignment.END,
+                        on_dismiss=lambda e: print("dialog dismissed!"),
+                    )
+
+                    page.dialog = dlg
+                    dlg.open = True
+                    page.update()
+
+                    return
+
+                game_process = subprocess.Popen([str(game_data.game_exe.absolute())])
 
             img_part = ft.Container(
                 ft.Column(
@@ -260,15 +204,11 @@ def main(page: ft.Page):
         page.update()
 
     def page_resized(e):
-        print(e)
-
         nonlocal img_controller, img_part
         if img_controller is not None:
             img_controller.width = page.width / 10 * 7
             img_controller.height = page.height - 200
             img_part.width = img_controller.width
-
-            print(page.height, img_controller.height)
 
         page.update()
 
@@ -283,6 +223,21 @@ def main(page: ft.Page):
 
     page.go(page.route)
 
+    def window_event_handler(e):
+        if e.data == "close":
+            page.window_destroy()
+            if game_process is not None:
+                game_process.terminate()
+                game_process.wait()
+
+    page.window_prevent_close = True
+    page.on_window_event = window_event_handler
+
 
 if __name__ == "__main__":
-    ft.app(main)
+    try:
+        ft.app(main)
+    finally:
+        if game_process is not None:
+            game_process.terminate()
+            game_process.wait()
